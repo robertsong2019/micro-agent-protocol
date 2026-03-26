@@ -1,0 +1,47 @@
+# Example: IoT Sensor Monitor
+# Designed for edge deployment (KrillClaw target)
+
+version: "1.0"
+name: iot-sensor-monitor
+description: Monitor IoT sensors and trigger alerts
+trigger: cron "*/5 * * * *"  # Every 5 minutes
+
+env:
+  ALERT_WEBHOOK: required
+  DEVICE_ID: required
+
+steps:
+  - id: read_sensors
+    intent: "Read current values from all sensors"
+    tools: [gpio]
+    output: sensor_data
+    
+  - id: check_thresholds
+    intent: "Compare sensor values against thresholds"
+    input:
+      temperature: {sensor_data.temperature}
+      humidity: {sensor_data.humidity}
+      pressure: {sensor_data.pressure}
+    output: alerts
+    
+  - id: send_alert
+    intent: "Send alert if any threshold exceeded"
+    tools: [webhook]
+    when: "len(alerts) > 0"
+    input:
+      device_id: {env.DEVICE_ID}
+      alerts: {alerts}
+
+tools:
+  gpio:
+    type: shell
+    allowed_commands: [gpio-read, i2cget, spidev]
+    sandbox: true
+    
+  webhook:
+    type: webhook
+    url: ${ALERT_WEBHOOK}
+    method: POST
+
+output:
+  format: json

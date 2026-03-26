@@ -1,0 +1,59 @@
+# Example: Daily Tech News Agent
+# Fetches tech news, summarizes, and delivers to Slack
+
+version: "1.0"
+name: tech-news-digest
+description: Daily tech news summary delivered to Slack
+trigger: cron "0 8 * * *"  # 8 AM daily
+
+env:
+  NEWS_API_KEY: required
+  SLACK_WEBHOOK: required
+
+steps:
+  - id: fetch_news
+    intent: "Get top 10 technology news articles from today"
+    tools: [news_api]
+    output: articles
+    
+  - id: filter_relevant
+    intent: "Filter articles related to AI, programming, or startups"
+    when: "len(articles) > 0"
+    input:
+      articles: {articles}
+    output: relevant_articles
+    
+  - id: summarize
+    intent: "Create a concise 3-bullet summary of each article"
+    when: "len(relevant_articles) > 0"
+    input:
+      articles: {relevant_articles}
+    output: summaries
+    
+  - id: format_message
+    intent: "Format summaries as a Slack message with emojis"
+    input:
+      summaries: {summaries}
+    output: slack_message
+    
+  - id: send_notification
+    intent: "Post message to Slack"
+    tools: [slack]
+    input:
+      message: {slack_message}
+
+tools:
+  news_api:
+    type: http
+    base_url: https://newsapi.org/v2
+    auth:
+      type: bearer
+      token: ${NEWS_API_KEY}
+      
+  slack:
+    type: webhook
+    url: ${SLACK_WEBHOOK}
+    method: POST
+
+output:
+  format: json

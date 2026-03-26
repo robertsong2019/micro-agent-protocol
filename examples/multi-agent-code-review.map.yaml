@@ -1,0 +1,81 @@
+# Example: Multi-Agent Code Review
+# Parallel execution of multiple review agents
+
+version: "1.0"
+name: code-review-agents
+description: Multi-agent code review with different perspectives
+trigger:
+  type: webhook
+  path: /code-review
+
+env:
+  GITHUB_TOKEN: required
+
+inputs:
+  repo:
+    type: string
+    description: Repository name (owner/repo)
+    required: true
+  pr_number:
+    type: number
+    description: Pull request number
+    required: true
+
+steps:
+  - parallel:
+      - id: security_review
+        intent: "Review code for security vulnerabilities"
+        tools: [github]
+        input:
+          repo: {repo}
+          pr_number: {pr_number}
+        output: security_issues
+        
+      - id: performance_review
+        intent: "Analyze code for performance issues"
+        tools: [github]
+        input:
+          repo: {repo}
+          pr_number: {pr_number}
+        output: performance_issues
+        
+      - id: style_review
+        intent: "Check code style and best practices"
+        tools: [github]
+        input:
+          repo: {repo}
+          pr_number: {pr_number}
+        output: style_issues
+  
+  - id: aggregate_reviews
+    intent: "Combine all review findings into a summary"
+    input:
+      security: {security_issues}
+      performance: {performance_issues}
+      style: {style_issues}
+    output: combined_review
+    
+  - id: post_comment
+    intent: "Post review as PR comment"
+    tools: [github]
+    when: "len(combined_review.issues) > 0"
+    input:
+      repo: {repo}
+      pr_number: {pr_number}
+      comment: {combined_review}
+
+tools:
+  github:
+    type: http
+    base_url: https://api.github.com
+    auth:
+      type: bearer
+      token: ${GITHUB_TOKEN}
+
+output:
+  format: json
+  schema:
+    total_issues:
+      type: number
+    issues_by_category:
+      type: object
